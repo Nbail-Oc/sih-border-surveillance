@@ -28,3 +28,10 @@ core
 docs/src/components/DockerComposeGenerator/config/devices.ts
 docs/src/components/DockerComposeGenerator/config/hardware.ts
 docs/src/components/DockerComposeGenerator/config/ports.ts
+
+# Frigate runtime media and generated snapshots
+media/
+
+# Local model files
+*.onnx
+*.pt
