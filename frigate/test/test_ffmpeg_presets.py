@@ -102,6 +102,11 @@ class TestFfmpegPresets(unittest.TestCase):
             " ".join(frigate_config.cameras["back"].ffmpeg_cmds[0]["cmd"])
         )
 
+    def test_http_mjpeg_demo_preset(self):
+        """The Windows webcam demo uses a supported HTTP MJPEG preset."""
+        assert parse_preset_input("preset-http-mjpeg-generic", 10)
+        assert parse_preset_input("preset-http-mjpeg", 10) is None
+
     def test_ffmpeg_input_args_as_string(self):
         # Strip user_agent args here to avoid handling quoting issues
         defaultArgsList = parse_preset_input(FFMPEG_INPUT_ARGS_DEFAULT, 5)[2::]

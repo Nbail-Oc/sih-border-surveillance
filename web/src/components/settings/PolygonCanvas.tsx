@@ -144,10 +144,16 @@ export function PolygonCanvas({
       return;
     }
 
+    const firstPoint = activePolygon.points[0];
+    const isNearFirstPoint =
+      firstPoint &&
+      Math.hypot(mousePos.x - firstPoint[0], mousePos.y - firstPoint[1]) < 25;
+
     if (
       activePolygon.points.length >= 3 &&
-      intersection?.getClassName() == "Circle" &&
-      intersection?.name() == "point-0"
+      ((intersection?.getClassName() == "Circle" &&
+        intersection?.name() == "point-0") ||
+        isNearFirstPoint)
     ) {
       // Close the polygon
       updatedPolygons[activePolygonIndex] = {
@@ -158,7 +164,8 @@ export function PolygonCanvas({
     } else {
       if (
         (!activePolygon.isFinished &&
-          intersection?.getClassName() !== "Circle") ||
+          intersection?.getClassName() !== "Circle" &&
+          !isNearFirstPoint) ||
         (activePolygon.isFinished && intersection?.name() == "unfilled-line")
       ) {
         let newPoint = [mousePos.x, mousePos.y];

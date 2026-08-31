@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>IBVAP - Live Camera Broadcaster</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card: #1e293b;
+      --accent: #3b82f6;
+      --accent-hover: #2563eb;
+      --text: #f8fafc;
+      --muted: #94a3b8;
+      --danger: #ef4444;
+      --success: #22c55e;
+    }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 20px;
+      box-sizing: border-box;
+    }
+    .card {
+      background: var(--card);
+      border-radius: 16px;
+      box-shadow: 0 10px 25px -5px rgba(0,0,0,0.5);
+      width: 100%;
+      max-width: 720px;
+      padding: 24px;
+      border: 1px solid rgba(255,255,255,0.1);
+    }
+    h1 {
+      font-size: 1.5rem;
+      margin-top: 0;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .badge {
+      font-size: 0.75rem;
+      background: rgba(59, 130, 246, 0.2);
+      color: var(--accent);
+      padding: 4px 8px;
+      border-radius: 6px;
+    }
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    select, button {
+      padding: 10px 16px;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      border: 1px solid rgba(255,255,255,0.15);
+      background: #334155;
+      color: var(--text);
+      outline: none;
+    }
+    select {
+      flex: 1;
+      min-width: 240px;
+      cursor: pointer;
+    }
+    button {
+      background: var(--accent);
+      cursor: pointer;
+      font-weight: 600;
+      transition: background 0.2s;
+      border: none;
+    }
+    button:hover {
+      background: var(--accent-hover);
+    }
+    button.stop {
+      background: var(--danger);
+    }
+    .video-container {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 16 / 9;
+      background: #000;
+      border-radius: 12px;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    .status {
+      margin-top: 12px;
+      font-size: 0.875rem;
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--muted);
+    }
+    .dot.live {
+      background: var(--success);
+      box-shadow: 0 0 10px var(--success);
+    }
+  </style>
+</head>
+<body>
+
+  <div class="card">
+    <h1>
+      <span>📹 Live Camera Broadcaster</span>
+      <span class="badge">Frigate NVR Streamer</span>
+    </h1>
+
+    <div class="controls">
+      <select id="cameraSelect">
+        <option value="">Scanning cameras...</option>
+      </select>
+      <button id="broadcastBtn" onclick="toggleBroadcast()">▶ Start Broadcasting</button>
+    </div>
+
+    <div class="video-container">
+      <video id="previewVideo" autoplay playsinline muted></video>
+    </div>
+
+    <div class="status">
+      <div class="dot" id="statusDot"></div>
+      <span id="statusText">Ready. Choose your laptop or USB camera above.</span>
+    </div>
+  </div>
+
+  <script>
+    let localStream = null;
+    let peerConnection = null;
+    let isBroadcasting = false;
+
+    const select = document.getElementById("cameraSelect");
+    const video = document.getElementById("previewVideo");
+    const broadcastBtn = document.getElementById("broadcastBtn");
+    const statusDot = document.getElementById("statusDot");
+    const statusText = document.getElementById("statusText");
+
+    async function initCameras() {
+      try {
+        await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const videoDevices = devices.filter(d => d.kind === "videoinput");
+
+        select.innerHTML = "";
+        videoDevices.forEach((device, index) => {
+          const option = document.createElement("option");
+          option.value = device.deviceId;
+          option.text = device.label || `Camera ${index + 1}`;
+          select.appendChild(option);
+        });
+
+        startPreview();
+      } catch (err) {
+        statusText.innerText = "Camera permission denied or camera not found: " + err.message;
+      }
+    }
+
+    async function startPreview() {
+      if (localStream) {
+        localStream.getTracks().forEach(t => t.stop());
+      }
+      const deviceId = select.value;
+      localStream = await navigator.mediaDevices.getUserMedia({
+        video: { deviceId: deviceId ? { exact: deviceId } : undefined, width: 1280, height: 720 },
+        audio: false
+      });
+      video.srcObject = localStream;
+    }
+
+    select.addEventListener("change", () => {
+      if (isBroadcasting) {
+        stopBroadcast();
+      }
+      startPreview();
+    });
+
+    async function toggleBroadcast() {
+      if (isBroadcasting) {
+        stopBroadcast();
+      } else {
+        startBroadcast();
+      }
+    }
+
+    let ws = null;
+
+    async function startBroadcast() {
+      if (!localStream) await startPreview();
+
+      statusText.innerText = "Connecting to Frigate WebRTC...";
+      statusDot.className = "dot live";
+
+      peerConnection = new RTCPeerConnection();
+      localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
+
+      peerConnection.onicecandidate = (e) => {
+        if (e.candidate && ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: "webrtc/candidate", value: e.candidate.candidate }));
+        }
+      };
+
+      const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+      const wsHost = window.location.hostname || "localhost";
+      const wsUrl = `${wsProtocol}//${wsHost}:5000/live/webrtc/api/ws?src=live_webcam`;
+
+      ws = new WebSocket(wsUrl);
+
+      ws.onopen = async () => {
+        const offer = await peerConnection.createOffer();
+        await peerConnection.setLocalDescription(offer);
+        ws.send(JSON.stringify({ type: "webrtc/offer", value: offer.sdp }));
+      };
+
+      ws.onmessage = async (e) => {
+        const msg = JSON.parse(e.data);
+        if (msg.type === "webrtc/answer") {
+          await peerConnection.setRemoteDescription({ type: "answer", sdp: msg.value });
+          isBroadcasting = true;
+          broadcastBtn.innerText = "⏹ Stop Broadcasting";
+          broadcastBtn.className = "stop";
+          statusText.innerText = "🟢 LIVE: Streaming directly to Frigate YOLOv8 Detection!";
+        } else if (msg.type === "webrtc/candidate" && msg.value) {
+          await peerConnection.addIceCandidate({ candidate: msg.value });
+        }
+      };
+
+      ws.onerror = (err) => {
+        statusText.innerText = "WebSocket Error connecting to Frigate port 5000.";
+        statusDot.className = "dot";
+      };
+
+      ws.onclose = () => {
+        if (isBroadcasting) stopBroadcast();
+      };
+    }
+
+    function stopBroadcast() {
+      if (ws) {
+        ws.close();
+        ws = null;
+      }
+      if (peerConnection) {
+        peerConnection.close();
+        peerConnection = null;
+      }
+      isBroadcasting = false;
+      broadcastBtn.innerText = "▶ Start Broadcasting";
+      broadcastBtn.className = "";
+      statusDot.className = "dot";
+      statusText.innerText = "Broadcasting stopped.";
+    }
+
+    window.onload = initCameras;
+  </script>
+</body>
+</html>
