@@ -15,6 +15,12 @@ import LivePlayer from "@/components/player/LivePlayer";
 import { Button } from "@/components/ui/button";
 import { Drawer, DrawerContent, DrawerTrigger } from "@/components/ui/drawer";
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuTrigger,
@@ -58,6 +64,7 @@ import {
 import { GiSpeaker, GiSpeakerOff } from "react-icons/gi";
 import {
   TbCameraDown,
+  TbPolygon,
   TbRecordMail,
   TbRecordMailOff,
   TbViewfinder,
@@ -113,6 +120,7 @@ import { useDocDomain } from "@/hooks/use-doc-domain";
 import { detectCameraAudioFeatures } from "@/utils/cameraUtil";
 import PtzControlPanel from "@/components/overlay/PtzControlPanel";
 import ObjectSettingsView from "../settings/ObjectSettingsView";
+import MasksAndZonesView from "../settings/MasksAndZonesView";
 import { useSearchEffect } from "@/hooks/use-overlay-state";
 import {
   downloadSnapshot,
@@ -142,7 +150,13 @@ export default function LiveCameraView({
   fullscreen,
   toggleFullscreen,
 }: LiveCameraViewProps) {
-  const { t } = useTranslation(["views/live", "components/dialog"]);
+  const { t } = useTranslation([
+    "views/live",
+    "components/dialog",
+    "views/settings",
+  ]);
+  const [zonesModalOpen, setZonesModalOpen] = useState(false);
+  const [, setUnsavedZoneChanges] = useState(false);
   const navigate = useNavigate();
   const { isPortrait } = useMobileOrientation();
   const mainRef = useRef<HTMLDivElement | null>(null);
@@ -522,6 +536,7 @@ export default function LiveCameraView({
       panning={{ disabled: clickOverlay }}
     >
       <Toaster position="top-center" closeButton={true} />
+      <>
       <div
         ref={mainRef}
         className={
@@ -575,6 +590,23 @@ export default function LiveCameraView({
                 {isDesktop && (
                   <div className="text-primary">
                     {t("button.history", { ns: "common" })}
+                  </div>
+                )}
+              </Button>
+              <Button
+                className="flex items-center gap-2.5 rounded-lg"
+                aria-label={t("masksAndZones.zones.label", {
+                  ns: "views/settings",
+                })}
+                size="sm"
+                onClick={() => setZonesModalOpen(true)}
+              >
+                <TbPolygon className="size-5 text-secondary-foreground" />
+                {isDesktop && (
+                  <div className="text-primary">
+                    {t("masksAndZones.zones.label", {
+                      ns: "views/settings",
+                    })}
                   </div>
                 )}
               </Button>
@@ -695,6 +727,7 @@ export default function LiveCameraView({
               cameraEnabled={cameraEnabled}
               debug={debug}
               setDebug={setDebug}
+              onOpenZones={() => setZonesModalOpen(true)}
             />
           </div>
         </div>
@@ -818,6 +851,27 @@ export default function LiveCameraView({
         </div>
       )}
     </TransformWrapper>
+    <Dialog open={zonesModalOpen} onOpenChange={setZonesModalOpen}>
+      <DialogContent className="flex h-[92vh] max-h-[92vh] w-[96vw] max-w-[96vw] flex-col bg-background p-4">
+        <DialogHeader className="flex flex-row items-center justify-between border-b pb-2">
+          <DialogTitle className="flex items-center gap-2 text-lg font-semibold">
+            <TbPolygon className="size-5 text-primary" />
+            <span>
+              {t("masksAndZones.zones.label", { ns: "views/settings" })} -{" "}
+              {camera.name}
+            </span>
+          </DialogTitle>
+        </DialogHeader>
+        <div className="min-h-0 flex-1 overflow-hidden pt-2">
+          <MasksAndZonesView
+            selectedCamera={camera.name}
+            selectedZoneMask={["zone"]}
+            setUnsavedChanges={setUnsavedZoneChanges}
+          />
+        </div>
+      </DialogContent>
+    </Dialog>
+    </>
   );
 }
 
@@ -842,6 +896,7 @@ type FrigateCameraFeaturesProps = {
   cameraEnabled: boolean;
   debug: boolean;
   setDebug: (debug: boolean) => void;
+  onOpenZones?: () => void;
 };
 function FrigateCameraFeatures({
   camera,
@@ -864,8 +919,13 @@ function FrigateCameraFeatures({
   cameraEnabled,
   debug,
   setDebug,
+  onOpenZones,
 }: FrigateCameraFeaturesProps) {
-  const { t } = useTranslation(["views/live", "components/dialog"]);
+  const { t } = useTranslation([
+    "views/live",
+    "components/dialog",
+    "views/settings",
+  ]);
   const { getLocaleDocUrl } = useDocDomain();
 
   const { payload: detectState, send: sendDetect } = useDetectState(
@@ -1171,6 +1231,16 @@ function FrigateCameraFeatures({
           disabled={!cameraEnabled || debug || isSnapshotLoading}
           loading={isSnapshotLoading}
         />
+        {onOpenZones && (
+          <CameraFeatureToggle
+            className="p-2 md:p-0"
+            variant={fullscreen ? "overlay" : "primary"}
+            Icon={TbPolygon}
+            isActive={false}
+            title={t("masksAndZones.zones.label", { ns: "views/settings" })}
+            onClick={onOpenZones}
+          />
+        )}
         {!fullscreen && (
           <DropdownMenu>
             <DropdownMenuTrigger>
@@ -1186,6 +1256,26 @@ function FrigateCameraFeatures({
             </DropdownMenuTrigger>
             <DropdownMenuContent className="max-w-96">
               <div className="flex flex-col gap-5 p-4">
+                {onOpenZones && (
+                  <div className="flex flex-col gap-1">
+                    <Label>
+                      {t("masksAndZones.zones.label", { ns: "views/settings" })}
+                    </Label>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex items-center justify-start gap-2"
+                      onClick={onOpenZones}
+                    >
+                      <TbPolygon className="size-4 text-primary" />
+                      <span>
+                        {t("masksAndZones.zones.label", {
+                          ns: "views/settings",
+                        })}
+                      </span>
+                    </Button>
+                  </div>
+                )}
                 {!isRestreamed && (
                   <div className="flex flex-col gap-2">
                     <Label>
@@ -1549,6 +1639,24 @@ function FrigateCameraFeatures({
                   />
                 )}
               </>
+            )}
+
+            {onOpenZones && (
+              <div className="flex flex-col gap-1 p-2">
+                <Label>
+                  {t("masksAndZones.zones.label", { ns: "views/settings" })}
+                </Label>
+                <Button
+                  variant="outline"
+                  className="flex w-full items-center justify-start gap-2"
+                  onClick={onOpenZones}
+                >
+                  <TbPolygon className="size-4 text-primary" />
+                  <span>
+                    {t("masksAndZones.zones.label", { ns: "views/settings" })}
+                  </span>
+                </Button>
+              </div>
             )}
 
             <div className="mt-3 flex flex-col gap-5">
