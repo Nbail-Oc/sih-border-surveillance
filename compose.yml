@@ -1,6 +1,6 @@
 services:
   frigate:
-    container_name: frigate
+    container_name: frigate-surveillance-demo
     privileged: true
     restart: unless-stopped
     image: ghcr.io/blakeblackshear/frigate:stable

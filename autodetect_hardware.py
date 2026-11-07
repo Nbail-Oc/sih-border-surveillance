@@ -63,8 +63,8 @@ def determine_tier(gpus, cpu):
             "model_path": "/config/model_cache/yolov8n.onnx",
             "model_type": "yolo-generic",
             "model_size": 320,
-            "detect_fps": 5,
-            "description": "No dedicated NVIDIA GPU detected. Using OpenVINO CPU acceleration with YOLOv8n (320x320) at 5 FPS."
+            "detect_fps": 30,
+            "description": "High-FPS mode. Using OpenVINO CPU acceleration with YOLOv8n (320x320) at 30 FPS."
         }
 
     # Evaluate highest VRAM GPU

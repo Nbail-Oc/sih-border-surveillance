@@ -81,7 +81,7 @@ def zone_monitor_loop():
 current_camera_index = 0
 requested_width = 1280
 requested_height = 720
-target_fps = 5  # Default to laptop-friendly 5 FPS (adjustable to 15 or 30 in UI)
+target_fps = 30  # Default to 30 FPS high quality (5 FPS cap removed)
 
 latest_jpeg = None
 frame_lock = threading.Lock()
@@ -91,7 +91,7 @@ running = True
 
 fps_counter = 0
 fps_start_time = time.time()
-measured_fps = 5.0
+measured_fps = 30.0
 
 def make_standby_frame(text="Connecting to Camera..."):
     img = np.zeros((720, 1280, 3), dtype=np.uint8)
@@ -404,9 +404,9 @@ UI_HTML = """<!DOCTYPE html>
       <div class="control-group">
         <label>Stream FPS:</label>
         <select id="fpsSelect" onchange="switchFps(this.value)">
-          <option value="5" selected>5 FPS (Laptop Battery Saver)</option>
+          <option value="30" selected>30 FPS (Full Speed / Smooth)</option>
           <option value="15">15 FPS (Balanced)</option>
-          <option value="30">30 FPS (Smooth)</option>
+          <option value="5">5 FPS (Battery Saver)</option>
         </select>
       </div>
 
